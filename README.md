@@ -5,7 +5,7 @@ Rally-CreateTimeSheetEntries
 
 This is a simple custom grid that can be used to select Tasks from a particular Sprint (and Owned by the Current User), and bulk-add them to a Timesheet.
 
-![App screenshot](https://raw.githubusercontent.com/markwilliams970/Rally-CreateTimeSheetEntries/master/images/screenshot1.png)
+![App screenshot](https://raw.githubusercontent.com/markwilliams970/Rally-CreateTimeSheetEntries/master/images/screenshot1a.png)
 
 ## Usage
 Grab the source code from:
