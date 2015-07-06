@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rally-CreateTimeSheetEntries</title>
+
+    <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function () {
+                Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    items: [
+        {
+            xtype: 'container',
+            itemId: 'iterationChooser',
+            padding: '10px',
+            layout: 'hbox'
+        },
+        {
+            xtype: 'container',
+            itemId: 'gridContainer',
+            padding: '10px'
+        }
+    ],
+
+    _iterationCombobox: null,
+    _currentUser: null,
+    _currentProject: null,
+    _getTasksButton: null,
+    _typeFeature: null,
+    _taskGrid: null,
+
+    launch: function() {
+
+        var me = this;
+
+        var currentContext = me.getContext();
+
+        //Get the current user and project
+        me._currentUser = currentContext.getUser();
+        me._currentProject = currentContext.getProject();
+
+        me._buildUI();
+    },
+
+    _buildUI: function() {
+
+        var me = this;
+
+        me._iterationCombobox = Ext.create('Rally.ui.combobox.IterationComboBox', {
+            fieldLabel:   'Choose Iteration',
+            width:        '350px',
+            listeners: {
+                scope: this,
+                'select': me._getTasks
+            }
+        });
+
+        me.down("#iterationChooser").add(me._iterationCombobox);
+
+        me._getTasksButton = Ext.create('Rally.ui.Button', {
+            text: 'Get Tasks',
+            handler: function() {
+                me._getTasks();
+            }
+        });
+
+        me.down('#iterationChooser').add(me._getTasksButton);
+    },
+
+    _getTasks: function() {
+
+        var me = this;
+
+        var selectedIteration           = this._iterationCombobox.getValue();
+        var selectedIterationRef        = Ext.create('Rally.util.Ref', selectedIteration);
+        var selectedIterationObjectID   = selectedIterationRef.getOid();
+
+        var currentUserName             = me._currentUser.UserName;
+        var currentProjectObjectID      = me._currentProject.ObjectID;
+
+        // console.log(selectedIterationObjectID);
+
+        if (this._taskGrid) {
+            this._taskGrid.destroy();
+        }
+
+        // console.log(currentUserName);
+        // console.log(currentProjectObjectID);
+
+        this._taskGrid = this.down('#gridContainer').add({
+            xtype: 'rallygrid',
+            itemId: 'rallygrid',
+            columnCfgs: [
+                'FormattedID',
+                'Name',
+                'State'
+            ],
+            context: this.getContext(),
+            enableBulkEdit: true,
+            showRowActionsColumn: true,
+            storeConfig: {
+                model: 'Task',
+                filters: [
+                    {
+                        property: 'Iteration.ObjectID',
+                        operator: '=',
+                        value: selectedIterationObjectID
+                    },
+                    {
+                        property: 'Project.ObjectID',
+                        operator: '=',
+                        value: currentProjectObjectID
+                    },
+                    {
+                        property: 'Owner.UserName',
+                        operator: '=',
+                        value: currentUserName
+                    }
+                ]
+            }
+
+        });
+    }
+});
+                Ext.override(Rally.ui.menu.bulk.RecordMenu, {
+    items: [
+        {xtype: 'rallyrecordmenuitembulkcreatetimesheetentries'}
+    ]
+});
+
+Ext.override(Rally.ui.menu.bulk.MenuItem, {
+
+    /**
+     * Array of records that are "successful" update b/c they do not change
+     *
+     */
+    successfulRecordsDueToNoChange: [],
+
+    /**
+     * Array of all records that are "successful" after updating and "no change"
+     *
+     */
+    successfulRecords: [],
+
+    /**
+     * Array of all records that need to be updated
+     *
+     */
+    dataToUpdate: [],
+
+
+    /**
+     * Uses a Rally.data.BulkRecordUpdater.updateRecords to save each record in records.
+     * @param records {Rally.data.Model[]} artifact records to be saved
+     * @param args {Object} additional args passed to onSuccess and prepareRecords
+     */
+    saveRecords: function(records, args) {
+        // console.log('PortfolioItemBulkStateChanger.MenuItem.saveRecords');
+
+        // console.log('selectedRecords:');
+        // console.log(records);
+
+        var me = this;
+
+        me.successfulRecords = [];
+        me.successfulRecordsDueToNoChange = [];
+        me.dataToUpdate = [];
+
+        var hydratedRecords = [];
+        var promises = [];
+
+        Ext.Array.each(records, function(artifact) {
+            promises.push(me.hydrateArtifact(artifact, me));
+        });
+
+        Deft.Promise.all(promises).then({
+            success: function(hydratedRecords) {
+                // console.log("hydratedRecords:");
+                // console.log(hydratedRecords);
+
+                var successfulRecords = me.prepareRecords(hydratedRecords, args);
+                me.successfulRecordsDueToNoChange = successfulRecords;
+
+                // console.log("successfulRecords:");
+                // console.log(successfulRecords);
+
+                if (me.successfulRecordsDueToNoChange.length === records.length) {
+                    me.onSuccess(me.successfulRecordsDueToNoChange, [], args);
+                } else {
+
+                    var selectedState = args;
+                    var selectedStateRef = selectedState.get('_ref');
+
+                    // console.log('selectedStateRef:');
+                    // console.log(selectedStateRef);
+
+                    var updateState = "";
+                    if (selectedStateRef !== "") {
+                        updateState = {'_ref': selectedStateRef};
+                    }
+
+                    // console.log('updateState:');
+                    // console.log(updateState);
+
+                    me.dataToUpdate = _.difference(hydratedRecords, me.successfulRecordsDueToNoChange);
+                    // console.log('dataToUpdate:');
+                    // console.log(me.dataToUpdate);
+
+                    Rally.data.BulkRecordUpdater.updateRecords({
+                        records: me.dataToUpdate,
+                        propertiesToUpdate: {
+                            State: updateState
+                        },
+                        success: function(failedRecords) {
+                            // console.log('failedRecords');
+                            // console.log(failedRecords);
+                            var successfulUpdateRecords = _.difference(me.dataToUpdate, failedRecords);
+                            var unsuccessfulRecords = failedRecords;
+
+                            // console.log('successfulUpdateRecords:');
+                            // console.log(successfulUpdateRecords);
+
+                            me.successfulRecords = me.successfulRecordsDueToNoChange.concat(successfulUpdateRecords);
+                            // console.log('me.successfulRecords after update and concat');
+                            // console.log(me.successfulRecords);
+
+                            if (me.successfulRecords.length !== 0) {
+                                me.onSuccess(me.successfulRecords, unsuccessfulRecords, args, "successful update");
+                            } else {
+                                Rally.ui.notify.Notifier.showError({
+                                    message: "No updates succeeded."
+                                });
+                                Ext.callback(me.onActionComplete, null, [me.successfulRecords, unsuccessfulRecords]);
+                            }
+                        },
+                        scope: me
+                    });
+                }
+            }
+        });
+    },
+
+    hydrateArtifact: function(artifact, scope) {
+        // console.log('PortfolioItemBulkStateChanger.MenuItem.hydrateArtifact');
+        var deferred = Ext.create('Deft.Deferred');
+        var me = scope;
+
+        var artifactType = artifact.get("_type");
+        var artifactOid  = artifact.get("ObjectID");
+        var artifactModel = Rally.data.ModelFactory.getModel({
+            type: artifactType,
+            scope: me,
+            success: function(model, operation) {
+                model.load(artifactOid, {
+                    scope: me,
+                    success: function(artifactHydrated, operation) {
+                        deferred.resolve(artifactHydrated);
+                    }
+                });
+            }
+        });
+        return deferred;
+    }
+});
+                (function() {
+    var Ext = window.Ext4 || window.Ext;
+
+    Ext.define('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet', {
+        extend: 'Rally.ui.menu.bulk.MenuItem',
+        alias: 'widget.rallyrecordmenuitembulkcreatetimesheetentries',
+
+        clientMetrics: [{
+            beginMethod: '_onAddToTimesheetClicked',
+            endMethod: 'onSuccess',
+            description: 'bulk action complete'
+        }],
+
+        config: {
+            text: 'Add to Timesheet...',
+
+            handler: function() {
+                this._onAddToTimesheetClicked();
+            },
+
+            predicate: function(records) {
+                return _.every(records, function(record) {
+                    return record.self.isArtifact();
+                });
+            },
+
+            prepareRecords: function(records) {
+                // console.log('PortfolioItemBulkStateChanger.RecordMenuItemPortfolioItemState.prepareRecords');
+                var me = this;
+                var successfulRecords = [];
+
+                // Calculate week start
+
+                var curr = new Date(); // get current date
+                var start = curr.getDate() - curr.getDay();
+                var weekStartLocal = new Date(curr.setDate(start));
+
+                var weekStartDay = weekStartLocal.getDate();
+                var weekStartMonth = weekStartLocal.getMonth();
+                var weekStartYear = weekStartLocal.getFullYear();
+
+                var weekStart = new Date(weekStartYear, weekStartMonth, weekStartDay);
+                var weekStartUTC = new Date( weekStart.getTime() - (weekStart.getTimezoneOffset() * 60000));
+
+                // console.log(weekStartUTC.toISOString());
+
+                // Loop through records and apply updated state
+                _.each(records, function(record) {
+
+                    var taskRecord = record;
+
+                    var workProduct = record.get('WorkProduct');
+                    var workProductrefString = workProduct._ref;
+                    var workProductRef = Ext.create('Rally.util.Ref', workProductrefString);
+                    var workProductOID = workProductRef.getOid();
+
+                    var taskOID = record.get('ObjectID');
+                    var taskRef = record.get('_ref');
+
+                    var owner = record.get('Owner');
+                    var ownerRefString = owner._ref;
+                    var ownerRef = Ext.create('Rally.util.Ref', ownerRefString);
+                    var ownerOID = ownerRef.getOid();
+
+                    var project = record.get('Project');
+                    var projectRefString = project._ref;
+                    var projectRef = Ext.create('Rally.util.Ref', projectRefString);
+                    var projectOID = projectRef.getOid();
+
+                    var timeSheetEntry = {
+                        Project:       projectRefString,
+                        WorkProduct:   workProductrefString,
+                        Task:          taskRef,
+                        User:          ownerRefString,
+                        WeekStartDate: weekStartUTC.toISOString()
+                    };
+
+                    var newTimeSheetModel = Rally.data.ModelFactory.getModel({
+                         type: 'TimeEntryItem'
+                    }).then({
+                        success: function(model) {
+                            var record = Ext.create(model, timeSheetEntry);
+                            record.save();
+                            successfulRecords.push(taskRecord);
+                        }
+                    });                  
+                    successfulRecords.push(record);
+                });
+                // console.log(successfulRecords);
+                return successfulRecords;
+            },
+
+            callingScope: this
+        },
+
+        constructor: function(config) {
+            // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet.constructor:');
+            // console.log('this.records');
+            // console.log(this.records);
+            this.mergeConfig(config);
+            this.callParent(arguments);
+        },
+
+        _onAddToTimesheetClicked: function() {
+
+            var me = this;
+
+            var confirmLabel = "Add To Timesheet?";
+            var message = "Add Selected Tasks to Timesheet for this Week?";
+
+            Ext.create('Rally.ui.dialog.ConfirmDialog', {
+                message: message,
+                confirmLabel: confirmLabel,
+                listeners: {
+                    confirm: function(){
+                        // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet._onAddToTimesheetClicked');
+                        if (me.onBeforeAction(me.records) === false) {
+                            return;
+                        }
+                        me.saveRecords(me.records);                                                
+                    }
+                }
+            });
+        },
+
+        /**
+         * @override
+         * @inheritdoc
+         */
+        onSuccess: function (successfulRecords, unsuccessfulRecords, selectedState, errorMessage) {
+            // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet.onSuccess');
+            // console.log(this);
+            // console.log('this.records:');
+            // console.log(this.records);
+            // console.log('successfulRecords:');
+            // console.log(successfulRecords);
+            var message = [
+                'Timesheets added for',
+                successfulRecords.length,
+                (successfulRecords.length === 1 ? 'item' : 'items')
+            ].join(' ');
+
+            if(successfulRecords.length === this.records.length) {
+                Rally.ui.notify.Notifier.show({ message: message + '.' });
+            } else {
+                Rally.ui.notify.Notifier.showWarning({
+                    message: [message, ', but ', unsuccessfulRecords.length, ' failed: ', errorMessage].join(' ')
+                });
+            }
+
+            var changes = {};
+            Ext.callback(this.onActionComplete, null, [successfulRecords, unsuccessfulRecords, changes]);
+            this.records = null;
+        }
+    });
+})();
+
+            Rally.launchApp('CustomApp', {
+                name:"Rally-CreateTimeSheetEntries",
+	            parentRepos:""
+            });
+
+        });
+    </script>
+
+
+
+    <style type="text/css">
+        .app {
+  /* Add app styles here */
+}
+
+    </style>
+</head>
+<body>
+</body>
+</html>
