@@ -51,7 +51,7 @@ Ext.define('CustomApp', {
         me.down("#iterationChooser").add(me._iterationCombobox);
 
         me._getTasksButton = Ext.create('Rally.ui.Button', {
-            text: 'Get Tasks',
+            text: 'Get My Tasks',
             handler: function() {
                 me._getTasks();
             }
@@ -86,7 +86,8 @@ Ext.define('CustomApp', {
             columnCfgs: [
                 'FormattedID',
                 'Name',
-                'State'
+                'State',
+                'Owner'
             ],
             context: this.getContext(),
             enableBulkEdit: true,
