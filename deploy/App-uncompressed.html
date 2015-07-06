@@ -3,7 +3,7 @@
 <head>
     <title>Rally-CreateTimeSheetEntries</title>
 
-    <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
+    <script type="text/javascript" src="https://rally1.rallydev.com/apps/2.0/sdk.js"></script>
 
     <script type="text/javascript">
         Rally.onReady(function () {
@@ -181,64 +181,16 @@ Ext.override(Rally.ui.menu.bulk.MenuItem, {
                 // console.log("hydratedRecords:");
                 // console.log(hydratedRecords);
 
+                var unsuccessfulRecords = [];
+
                 var successfulRecords = me.prepareRecords(hydratedRecords, args);
                 me.successfulRecordsDueToNoChange = successfulRecords;
 
+                me.onSuccess(successfulRecords, unsuccessfulRecords, args, "successful update");
+                Ext.callback(me.onActionComplete, null, [successfulRecords, unsuccessfulRecords]);
+
                 // console.log("successfulRecords:");
                 // console.log(successfulRecords);
-
-                if (me.successfulRecordsDueToNoChange.length === records.length) {
-                    me.onSuccess(me.successfulRecordsDueToNoChange, [], args);
-                } else {
-
-                    var selectedState = args;
-                    var selectedStateRef = selectedState.get('_ref');
-
-                    // console.log('selectedStateRef:');
-                    // console.log(selectedStateRef);
-
-                    var updateState = "";
-                    if (selectedStateRef !== "") {
-                        updateState = {'_ref': selectedStateRef};
-                    }
-
-                    // console.log('updateState:');
-                    // console.log(updateState);
-
-                    me.dataToUpdate = _.difference(hydratedRecords, me.successfulRecordsDueToNoChange);
-                    // console.log('dataToUpdate:');
-                    // console.log(me.dataToUpdate);
-
-                    Rally.data.BulkRecordUpdater.updateRecords({
-                        records: me.dataToUpdate,
-                        propertiesToUpdate: {
-                            State: updateState
-                        },
-                        success: function(failedRecords) {
-                            // console.log('failedRecords');
-                            // console.log(failedRecords);
-                            var successfulUpdateRecords = _.difference(me.dataToUpdate, failedRecords);
-                            var unsuccessfulRecords = failedRecords;
-
-                            // console.log('successfulUpdateRecords:');
-                            // console.log(successfulUpdateRecords);
-
-                            me.successfulRecords = me.successfulRecordsDueToNoChange.concat(successfulUpdateRecords);
-                            // console.log('me.successfulRecords after update and concat');
-                            // console.log(me.successfulRecords);
-
-                            if (me.successfulRecords.length !== 0) {
-                                me.onSuccess(me.successfulRecords, unsuccessfulRecords, args, "successful update");
-                            } else {
-                                Rally.ui.notify.Notifier.showError({
-                                    message: "No updates succeeded."
-                                });
-                                Ext.callback(me.onActionComplete, null, [me.successfulRecords, unsuccessfulRecords]);
-                            }
-                        },
-                        scope: me
-                    });
-                }
             }
         });
     },
