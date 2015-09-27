@@ -86,6 +86,7 @@ Ext.define('CustomApp', {
             columnCfgs: [
                 'FormattedID',
                 'Name',
+                'Project',
                 'State',
                 'Owner'
             ],
@@ -109,8 +110,29 @@ Ext.define('CustomApp', {
                         property: 'Owner.UserName',
                         operator: '=',
                         value: currentUserName
+                    },
+                    {
+                        property: 'State',
+                        operator: '<',
+                        value: 'Complete'
                     }
-                ]
+                ],
+                listeners: {
+                    load: function(store, data, success) {
+                        if (data.length === 0) {
+                            Ext.create('Rally.ui.dialog.ConfirmDialog', {
+                                title: "Tasks Not Found",
+                                message: "No Tasks owned by you with State < Complete found for the current Project.",
+                                confirmLabel: "Ok",
+                                listeners: {
+                                    confirm: function () {
+                                        return;
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
             }
 
         });
