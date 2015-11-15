@@ -30,8 +30,8 @@ Ext.override(Rally.ui.menu.bulk.MenuItem, {
      * @param records {Rally.data.Model[]} artifact records to be saved
      * @param args {Object} additional args passed to onSuccess and prepareRecords
      */
-    saveRecords: function(records, args) {
-        // console.log('PortfolioItemBulkStateChanger.MenuItem.saveRecords');
+    saveRecords: function(records, args, selectedDate) {
+        // console.log('CreateTimeSheetEntries.MenuItem.saveRecords');
 
         // console.log('selectedRecords:');
         // console.log(records);
@@ -56,7 +56,7 @@ Ext.override(Rally.ui.menu.bulk.MenuItem, {
 
                 var unsuccessfulRecords = [];
 
-                var successfulRecords = me.prepareRecords(hydratedRecords, args);
+                var successfulRecords = me.processRecords(hydratedRecords, args, selectedDate);
                 me.successfulRecordsDueToNoChange = successfulRecords;
 
                 me.onSuccess(successfulRecords, unsuccessfulRecords, args, "successful update");
@@ -69,7 +69,7 @@ Ext.override(Rally.ui.menu.bulk.MenuItem, {
     },
 
     hydrateArtifact: function(artifact, scope) {
-        // console.log('PortfolioItemBulkStateChanger.MenuItem.hydrateArtifact');
+        // console.log('CreateTimeSheetEntries.MenuItem.hydrateArtifact');
         var deferred = Ext.create('Deft.Deferred');
         var me = scope;
 

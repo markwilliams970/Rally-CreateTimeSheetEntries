@@ -6,7 +6,8 @@
    "javascript": [
       "App.js",
       "CreateTimeSheetEntries.Overrides.js",
-      "CreateTimeSheetEntries.RecordMenuItemAddToTimesheet.js"
+      "CreateTimeSheetEntries.RecordMenuItemAddToTimesheet.js",
+      "ChooseDateDialog.js"
    ],
    "css": [
       "app.css"

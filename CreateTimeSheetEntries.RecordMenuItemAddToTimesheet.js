@@ -11,6 +11,8 @@
             description: 'bulk action complete'
         }],
 
+        _selectDateChooserDialog: null,
+
         config: {
             text: 'Add to Timesheet...',
 
@@ -24,16 +26,16 @@
                 });
             },
 
-            prepareRecords: function(records) {
-                // console.log('PortfolioItemBulkStateChanger.RecordMenuItemPortfolioItemState.prepareRecords');
+            processRecords: function(records, args, selectedDate) {
+                // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet.processRecords');
                 var me = this;
                 var successfulRecords = [];
 
-                // Calculate week start
-
                 var curr = new Date(); // get current date
-                var start = curr.getDate() - curr.getDay();
-                var weekStartLocal = new Date(curr.setDate(start));
+
+                // Calculate week start
+                var start = selectedDate.getDate() - selectedDate.getDay();
+                var weekStartLocal = new Date(selectedDate.setDate(start));
 
                 var weekStartDay = weekStartLocal.getDate();
                 var weekStartMonth = weekStartLocal.getMonth();
@@ -101,26 +103,131 @@
             this.callParent(arguments);
         },
 
+        _validateDate: function(selectedIteration, chosenDate) {
+
+            // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet._validateDate');
+
+            var me = this;
+            var maxDate = selectedIteration.get('EndDate');
+            var minDate = selectedIteration.get('StartDate');
+
+            var maxDateString = me._dateToISOString(maxDate);
+            var minDateString = me._dateToISOString(minDate);
+
+            var warnLabel = "Date must be within Iteration StartDate: \n" +
+                    minDateString +
+                    "\nAnd EndDate:\n" +
+                    maxDateString +
+                    "\n Of Selected Tasks.";
+
+            if ( ( chosenDate.getTime() < minDate.getTime() ) || ( chosenDate.getTime() > maxDate.getTime() )) {
+                // Notify of successful deletion
+                Ext.create('Rally.ui.dialog.ConfirmDialog', {
+                    title: "Warning: Invalid Date Selected!",
+                    message: warnLabel,
+                    confirmLabel: "Ok"
+                });
+            } else {
+
+                var confirmLabel = "Add To Timesheet?";
+                var message = "Add Selected Tasks to Timesheet for selected Week?";
+
+                Ext.create('Rally.ui.dialog.ConfirmDialog', {
+                    message: message,
+                    confirmLabel: confirmLabel,
+                    listeners: {
+                        confirm: function(){
+                            // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet._onAddToTimesheetClicked');
+                            if (me.onBeforeAction(me.records) === false) {
+                                return;
+                            }
+
+                            // console.log('Go ahead and save the records...');
+                            args = {};
+                            me.saveRecords(me.records, args, chosenDate);
+                        }
+                    }
+                });
+
+            }
+        },
+
+        _selectWeekForTimesheet: function(selectedIteration) {
+            // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet._selectWeekForTimesheet');
+
+            var me = this;
+
+            var maxDate = selectedIteration.get('EndDate');
+            var minDate = selectedIteration.get('StartDate');
+
+            // Get the week to which we want to add the timesheets
+            if (me._selectDateChooserDialog) {
+                me._selectDateChooserDialog.destroy();
+            }
+
+            var label = "Choose Date within Timesheet Week to Add Tasks:";
+            var defaultDate = new Date();
+            var confirmLabel = "Ok";
+
+            me._selectDateChooserDialog = Ext.create('ChooseDateDialog', {
+                calendarLabel: label,
+                defaultDate: defaultDate,
+                confirmLabel: confirmLabel,
+                maxDate: maxDate,
+                minDate: minDate,
+                listeners: {
+                    confirm: function(dialog, chosendate) {
+                        // Validate selected date is within Iteration
+                        me._validateDate(selectedIteration, chosendate);
+                    }
+                }
+            });
+        },
+
+        _hydrateIteration: function() {
+
+            // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet._hydrateIteration');
+
+            var me = this;
+
+            var selectedIteration = me.records[0].get('Iteration');
+
+            // hydrate iteration data
+            var iterationOid  = selectedIteration["ObjectID"];
+            var iterationModel = Rally.data.ModelFactory.getModel({
+                type: 'iteration',
+                scope: me,
+                success: function(model, operation) {
+                    model.load(iterationOid, {
+                        scope: me,
+                        success: function(iterationHydrated, operation) {
+                            me._selectWeekForTimesheet(iterationHydrated);
+                        }
+                    });
+                }
+            });
+
+        },
+
         _onAddToTimesheetClicked: function() {
 
             var me = this;
 
-            var confirmLabel = "Add To Timesheet?";
-            var message = "Add Selected Tasks to Timesheet for this Week?";
+            // Get the Iteration corresponding to the selected Tasks
+            me._hydrateIteration();
 
-            Ext.create('Rally.ui.dialog.ConfirmDialog', {
-                message: message,
-                confirmLabel: confirmLabel,
-                listeners: {
-                    confirm: function(){
-                        // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet._onAddToTimesheetClicked');
-                        if (me.onBeforeAction(me.records) === false) {
-                            return;
-                        }
-                        me.saveRecords(me.records);                                                
-                    }
-                }
-            });
+
+        },
+
+        _dateToISOString: function(date, convertToUTC, stripTimePortion) {
+
+            // console.log('_dateToISOString');
+
+            if (stripTimePortion) {
+                return Rally.util.DateTime.toIsoString( date, convertToUTC ).replace(/T[\W\w]*/,"");
+            } else {
+                return Rally.util.DateTime.toIsoString( date, convertToUTC );
+            }
         },
 
         /**
