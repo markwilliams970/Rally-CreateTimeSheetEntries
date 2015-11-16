@@ -304,14 +304,7 @@ Ext.override(Rally.ui.menu.bulk.MenuItem, {
                 var curr = new Date(); // get current date
 
                 // Calculate week start
-                var start = selectedDate.getDate() - selectedDate.getDay();
-                var weekStartLocal = new Date(selectedDate.setDate(start));
-
-                var weekStartDay = weekStartLocal.getDate();
-                var weekStartMonth = weekStartLocal.getMonth();
-                var weekStartYear = weekStartLocal.getFullYear();
-
-                var weekStart = new Date(weekStartYear, weekStartMonth, weekStartDay);
+                var weekStart = me._calculateWeekStart(selectedDate);
                 var weekStartUTC = new Date( weekStart.getTime() - (weekStart.getTimezoneOffset() * 60000));
 
                 // console.log(weekStartUTC.toISOString());
@@ -373,6 +366,19 @@ Ext.override(Rally.ui.menu.bulk.MenuItem, {
             this.callParent(arguments);
         },
 
+        _calculateWeekStart: function(inputDate) {
+            // Calculate week start
+            var start = inputDate.getDate() - inputDate.getDay();
+            var weekStartLocal = new Date(inputDate.setDate(start));
+
+            var weekStartDay = weekStartLocal.getDate();
+            var weekStartMonth = weekStartLocal.getMonth();
+            var weekStartYear = weekStartLocal.getFullYear();
+
+            var weekStart = new Date(weekStartYear, weekStartMonth, weekStartDay);
+            return weekStart;
+        },
+
         _validateDate: function(selectedIteration, chosenDate) {
 
             // console.log('CreateTimeSheetEntries.RecordMenuItemAddToTimesheet._validateDate');
@@ -384,13 +390,15 @@ Ext.override(Rally.ui.menu.bulk.MenuItem, {
             var maxDateString = me._dateToISOString(maxDate);
             var minDateString = me._dateToISOString(minDate);
 
-            var warnLabel = "Date must be within Iteration StartDate: \n" +
+            var weekStartChosenDate = me._calculateWeekStart(chosenDate);
+
+            var warnLabel = "Week Start for Chosen Date must be within Iteration StartDate: \n" +
                     minDateString +
                     "\nAnd EndDate:\n" +
                     maxDateString +
                     "\n Of Selected Tasks.";
 
-            if ( ( chosenDate.getTime() < minDate.getTime() ) || ( chosenDate.getTime() > maxDate.getTime() )) {
+            if ( ( weekStartChosenDate.getTime() < minDate.getTime() ) || ( weekStartChosenDate.getTime() > maxDate.getTime() )) {
                 // Notify of successful deletion
                 Ext.create('Rally.ui.dialog.ConfirmDialog', {
                     title: "Warning: Invalid Date Selected!",
