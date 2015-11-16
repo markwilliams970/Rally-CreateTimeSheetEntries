@@ -173,7 +173,7 @@
                 me._selectDateChooserDialog.destroy();
             }
 
-            var label = "Choose Date within Timesheet Week to Add Tasks:";
+            var label = "Choose Week within Timesheet Week to Add Tasks:";
             var defaultDate = new Date();
             var confirmLabel = "Ok";
 
