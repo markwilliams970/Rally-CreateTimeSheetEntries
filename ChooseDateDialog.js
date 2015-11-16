@@ -78,7 +78,8 @@ Ext.define('ChooseDateDialog', {
         },
         {
             xtype: 'container',
-            itemId: 'calendarContainer'
+            itemId: 'calendarContainer',
+            width: 400,
         }
     ],
 
@@ -175,7 +176,7 @@ Ext.define('ChooseDateDialog', {
 
         var calendarConfig = {
             title: calendarLabel,
-            width: 400,
+            width: 200,
             bodyPadding: 10,
             renderTo: Ext.getBody(),
             items: [{
